@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZintegrationX-BTC-Tracker</title>
+    <meta name="description" content="Bitcoin price and portfolio projection tracker">
+    <meta name="theme-color" content="#f4f4f4">
+    <link rel="manifest" href="data:application/manifest+json,{
+        \"name\": \"ZintegrationX-BTC-Tracker\",
+        \"short_name\": \"BTC Tracker\",
+        \"description\": \"Track Bitcoin price and portfolio projections\",
+        \"start_url\": \".\",
+        \"display\": \"standalone\",
+        \"background_color\": \"#f4f4f4\",
+        \"theme_color\": \"#f4f4f4\",
+        \"icons\": [
+            {
+                \"src\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAM1BMVEUAAAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADc4e4ZAAAAEHRSTlMA7+/v7+/v7+/v7+/v7+/v7+8a9gAAAChJREFUeAFjYGRgYGBkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRgYAAATwABkwAAAABJRU5ErkJggg==\",
+                \"sizes\": \"32x32\",
+                \"type\": \"image/png\"
+            }
+        ]
+    }">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onerror="console.error('Failed to load Chart.js'); document.getElementById('error').textContent = 'Error: Failed to load chart library'; document.getElementById('error').style.display = 'block';"></script>
+    <style>
+        :root {
+            --background: #f4f4f4;
+            --text: #333;
+            --card-bg: #fff;
+            --card-shadow: 0 0 10px rgba(0,0,0,0.1);
+            --chart-bg: #fff;
+            --chart-text: #333;
+            --chart-grid: #ccc;
+        }
+        [data-theme="dark"] {
+            --background: #1a1a1a;
+            --text: #e0e0e0;
+            --card-bg: #2c2c2c;
+            --card-shadow: 0 0 10px rgba(0,0,0,0.3);
+            --chart-bg: #2c2c2c;
+            --chart-text: #e0e0e0;
+            --chart-grid: #555;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: var(--background);
+            color: var(--text);
+            font-size: 16px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        h1 {
+            text-align: center;
+            color: var(--text);
+            font-size: 24px;
+        }
+        #theme-toggle {
+            display: block;
+            margin: 10px auto;
+            padding: 8px 16px;
+            background-color: var(--card-bg);
+            color: var(--text);
+            border: 1px solid var(--text);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #theme-toggle:hover {
+            background-color: var(--text);
+            color: var(--background);
+        }
+        #price, #error, .current-value {
+            text-align: center;
+            font-size: 1.1em;
+            margin: 8px 0;
+            color: var(--text);
+        }
+        #error {
+            color: #ff5555;
+            display: none;
+        }
+        #btc-input-container {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        #btc-amount-input {
+            width: 150px;
+            padding: 5px;
+            font-size: 14px;
+            color: var(--text);
+            background-color: var(--card-bg);
+            border: 1px solid var(--text);
+            border-radius: 4px;
+        }
+        .sections-container {
+            width: 80vw;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0;
+        }
+        #projections {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            font-size: 14px;
+            color: var(--text);
+            width: 80vw;
+            max-width: 1000px;
+            margin: 0 auto 20px;
+        }
+        #legend {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            font-size: 14px;
+            color: var(--text);
+            width: 80vw;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        #projections h2, #legend h2 {
+            font-size: 1.3em;
+            color: var(--text);
+            margin-top: 0;
+            text-align: center;
+        }
+        #projections .columns {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        #projections .column {
+            flex: 1;
+            min-width: 0;
+        }
+        #projections ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #projections li {
+            margin: 8px 0;
+        }
+        #projections .satoshi-note {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: var(--text);
+            width: 100%;
+        }
+        #year-slider-container {
+            width: 80vw;
+            max-width: 1000px;
+            margin: 10px auto;
+            text-align: center;
+        }
+        #year-slider {
+            width: 80%;
+            margin: 10px 0;
+        }
+        #year-label {
+            font-size: 14px;
+            color: var(--text);
+        }
+        #scenario-toggles {
+            width: 80vw;
+            max-width: 1000px;
+            margin: 10px auto;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        #scenario-toggles label {
+            font-size: 14px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #scenario-toggles input[type="checkbox"] {
+            cursor: pointer;
+        }
+        canvas#btcChart {
+            width: 80vw !important;
+            height: 40vh !important;
+            min-width: 300px;
+            min-height: 200px;
+            max-width: 1000px;
+            max-height: 500px;
+            margin: 20px auto;
+            padding: 10px;
+            display: block;
+            background: var(--chart-bg);
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            overflow: visible;
+        }
+        @media (max-width: 600px) {
+            canvas#btcChart, #projections, #legend, #year-slider-container, #scenario-toggles {
+                width: 90vw !important;
+            }
+            .sections-container {
+                width: 90vw;
+            }
+            #projections .columns {
+                flex-direction: column;
+                gap: 10px;
+            }
+            body {
+                font-size: 14px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+        }
+        @media (min-width: 1200px) {
+            canvas#btcChart, #projections, #legend, #year-slider-container, #scenario-toggles {
+                width: 75vw !important;
+            }
+            .sections-container {
+                width: 75vw;
+            }
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <h1>ZintegrationX-BTC-Tracker</h1>
+    <button id="theme-toggle">Toggle Dark Mode</button>
+    <div id="btc-input-container"></div>
+    <div id="price">Loading BTC Price...</div>
+    <div id="error"></div>
+    <div id="scenario-toggles">
+        <label><input type="checkbox" id="toggle-historical" checked> <span style="color: #00FF00;">Historical CAGR</span></label>
+        <label><input type="checkbox" id="toggle-conservative" checked> <span style="color: #0000FF;">Conservative Growth</span></label>
+        <label><input type="checkbox" id="toggle-accelerated" checked> <span style="color: #FF00FF;">Accelerated Adoption</span></label>
+    </div>
+    <div id="year-slider-container">
+        <label for="year-slider" id="year-label">Projections to 2035 (10 years)</label>
+        <input type="range" id="year-slider" min="1" max="25" value="10" step="1">
+    </div>
+    <canvas id="btcChart"></canvas>
+    <div class="sections-container">
+        <div id="projections">
+            <h2>Projected Portfolio Values</h2>
+            <div class="columns">
+                <div class="column">
+                    <ul id="milestone-values">
+                        <li>At $1,000,000: Calculating...</li>
+                        <li>At $10,000,000: Calculating...</li>
+                        <li>At $100,000,000: Calculating...</li>
+                    </ul>
+                </div>
+                <div class="column">
+                    <ul id="terminal-values">
+                        <li id="terminal-conservative"></li>
+                        <li id="terminal-historical"></li>
+                        <li id="terminal-accelerated"></li>
+                    </ul>
+                </div>
+            </div>
+            <p class="satoshi-note">Note: at $100,000,000 one Satoshi will equal 1 USD</p>
+        </div>
+    </div>
+    <div id="legend">
+        <h2>Chart Legend</h2>
+        <ul>
+            <li><strong>Historical CAGR (Green)</strong>: Assumes Bitcoin grows at its historical compound annual growth rate (~76.8%).</li>
+            <li><strong>Conservative Growth (Blue)</strong>: Assumes slower growth (~30%) due to market maturation or regulations.</li>
+            <li><strong>Accelerated Adoption (Magenta)</strong>: Assumes rapid growth (~100%) from widespread adoption.</li>
+        </ul>
+    </div>
+
+    <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                try {
+                    navigator.serviceWorker.register('data:application/javascript,' + encodeURIComponent(`
+                        const CACHE_NAME = 'btc-tracker-v1';
+                        const urlsToCache = [
+                            '/',
+                            'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'
+                        ];
+                        self.addEventListener('install', event => {
+                            event.waitUntil(
+                                caches.open(CACHE_NAME).then(cache => {
+                                    return cache.addAll(urlsToCache);
+                                })
+                            );
+                        });
+                        self.addEventListener('fetch', event => {
+                            event.respondWith(
+                                caches.match(event.request).then(response => {
+                                    if (response) return response;
+                                    return fetch(event.request).catch(() => {
+                                        if (event.request.url.includes('coingecko')) {
+                                            return new Response(JSON.stringify({ bitcoin: { usd: 110000 } }), {
+                                                headers: { 'Content-Type': 'application/json' }
+                                            });
+                                        }
+                                    });
+                                })
+                            );
+                        });
+                        self.addEventListener('activate', event => {
+                            const cacheWhitelist = [CACHE_NAME];
+                            event.waitUntil(
+                                caches.keys().then(cacheNames => {
+                                    return Promise.all(
+                                        cacheNames.map(cacheName => {
+                                            if (!cacheWhitelist.includes(cacheName)) {
+                                                return caches.delete(cacheName);
+                                            }
+                                        })
+                                    );
+                                })
+                            );
+                        });
+                    `)).then(() => console.log('Service worker registered')).catch(error => console.error('Service worker registration failed:', error));
+                } catch (error) {
+                    console.error('Service worker setup error:', error.message, error.stack);
+                }
+            });
+        }
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        body.setAttribute('data-theme', savedTheme);
+        themeToggle.textContent = savedTheme === 'light' ? 'Toggle Dark Mode' : 'Toggle Light Mode';
+
+        themeToggle.addEventListener('click', () => {
+            try {
+                const currentTheme = body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                body.setAttribute('data-theme', newTheme);
+                themeToggle.textContent = newTheme === 'light' ? 'Toggle Dark Mode' : 'Toggle Light Mode';
+                localStorage.setItem('theme', newTheme);
+                updateChartTheme(newTheme);
+            } catch (error) {
+                console.error('Theme toggle error:', error.message, error.stack);
+            }
+        });
+
+        // Portfolio Data
+        let totalBTCEquivalent = 0.1; // User-editable BTC amount, default 0.1 BTC
+        let currentBTCPrice = 110000; // Initial fallback
+        let chartInstance = null;
+
+        // Scenario Toggle States
+        const scenarioToggles = {
+            historical: true,
+            conservative: true,
+            accelerated: true
+        };
+
+        // Fetch Real-Time BTC Price
+        async function fetchBTCPrice() {
+            const priceDiv = document.getElementById('price');
+            const errorDiv = document.getElementById('error');
+            let response = null;
+            try {
+                if (!priceDiv || !errorDiv) throw new Error('Price or error div not found');
+                priceDiv.textContent = 'Loading BTC Price...';
+                errorDiv.style.display = 'none';
+                response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`BTC API: Network response was not ok, status: ${response.status}, message: ${errorText}`);
+                }
+                const data = await response.json();
+                currentBTCPrice = data.bitcoin.usd;
+                localStorage.setItem('lastBTCPrice', currentBTCPrice); // Cache price
+                priceDiv.textContent = `Current BTC Price: $${currentBTCPrice.toFixed(2)}`;
+                updateBTCInput();
+            } catch (error) {
+                console.error('BTC fetch error:', error.message, error, 'Status:', response ? response.status : 'N/A');
+                const cachedPrice = localStorage.getItem('lastBTCPrice') || currentBTCPrice;
+                if (priceDiv) priceDiv.textContent = `BTC Price: $${cachedPrice.toFixed(2)} (Offline)`;
+                if (errorDiv) {
+                    errorDiv.textContent = `Error: ${error.message}`;
+                    errorDiv.style.display = 'block';
+                }
+            }
+        }
+
+        // Update BTC Input and Value
+        function updateBTCInput() {
+            const btcInputContainer = document.getElementById('btc-input-container');
+            if (!btcInputContainer) {
+                console.error('BTC input container element not found');
+                return;
+            }
+            btcInputContainer.innerHTML = `
+                <label for="btc-amount-input">Total BTC Amount:</label>
+                <input type="number" id="btc-amount-input" value="${totalBTCEquivalent.toFixed(8)}" step="0.00000001" min="0">
+                <div class="current-value">Current Value: $${(totalBTCEquivalent * currentBTCPrice).toFixed(2)}</div>
+            `;
+            const btcInput = document.getElementById('btc-amount-input');
+            if (btcInput) {
+                btcInput.addEventListener('input', () => {
+                    try {
+                        const newValue = parseFloat(btcInput.value);
+                        if (!isNaN(newValue) && newValue >= 0) {
+                            totalBTCEquivalent = newValue;
+                            updateBTCInput();
+                            initializeChart(body.getAttribute('data-theme')); // Update projections
+                        }
+                    } catch (error) {
+                        console.error('BTC input error:', error.message, error.stack);
+                    }
+                });
+            } else {
+                console.error('BTC amount input element not found');
+            }
+        }
+
+        // Chart Data and Logic
+        const historicalYears = [2010, 2013, 2017, 2021, 2024, 2025];
+        const historicalPrices = [0.1, 1000, 20000, 69000, 100000, 130000];
+        const growthRates = {
+            historicalCAGR: 0.768,
+            conservative: 0.3,
+            accelerated: 1.0
+        };
+
+        function interpolateHistoricalPrices(years) {
+            const interpolatedPrices = [];
+            let j = 0;
+            for (let i = 0; i < years.length; i++) {
+                const year = years[i];
+                if (year < historicalYears[0] || year > historicalYears[historicalYears.length - 1]) {
+                    interpolatedPrices.push(null);
+                    continue;
+                }
+                while (j < historicalYears.length - 1 && year > historicalYears[j]) {
+                    j++;
+                }
+                if (year === historicalYears[j]) {
+                    interpolatedPrices.push(historicalPrices[j]);
+                } else {
+                    const y0 = historicalYears[j - 1];
+                    const y1 = historicalYears[j];
+                    const p0 = historicalPrices[j - 1];
+                    const p1 = historicalPrices[j];
+                    const fraction = (year - y0) / (y1 - y0);
+                    const price = p0 + (p1 - p0) * fraction;
+                    interpolatedPrices.push(price);
+                }
+            }
+            return interpolatedPrices;
+        }
+
+        function generateProjectionData(years, startPrice, growthRate, uncertaintyFactorLow, uncertaintyFactorHigh) {
+            return years.map(year => {
+                const yearsFrom2025 = year - 2025;
+                if (yearsFrom2025 < 0) return null;
+                const median = yearsFrom2025 === 0 ? startPrice : startPrice * Math.pow(1 + growthRate, yearsFrom2025);
+                if (isNaN(median) || median <= 0) return null;
+                return {
+                    median,
+                    low: yearsFrom2025 === 0 ? startPrice : median * uncertaintyFactorLow,
+                    high: yearsFrom2025 === 0 ? startPrice : median * uncertaintyFactorHigh
+                };
+            });
+        }
+
+        function getChartData(endYear, theme) {
+            try {
+                const years = [];
+                for (let y = 2010; y <= endYear; y++) {
+                    years.push(y);
+                }
+                if (years.length === 0) {
+                    console.error('No years generated for chart data');
+                    return null;
+                }
+                const historicalData = interpolateHistoricalPrices(years);
+                const historicalCAGR = generateProjectionData(years, 130000, growthRates.historicalCAGR, 0.5, 1.5);
+                const conservative = generateProjectionData(years, 130000, growthRates.conservative, 0.7, 1.3);
+                const accelerated = generateProjectionData(years, 130000, growthRates.accelerated, 0.6, 1.4);
+                const allPrices = [
+                    ...accelerated.map(d => d ? d.high : 0),
+                    ...historicalCAGR.map(d => d ? d.high : 0),
+                    ...conservative.map(d => d ? d.high : 0),
+                    100000000
+                ].filter(v => v > 0 && !isNaN(v));
+                const maxPrice = allPrices.length > 0 ? Math.max(...allPrices) * 1.5 : 1000000000;
+                const terminalYearPrices = {
+                    conservative: conservative[conservative.length - 1]?.median || 130000,
+                    historical: historicalCAGR[conservative.length - 1]?.median || 130000,
+                    accelerated: accelerated[conservative.length - 1]?.median || 130000
+                };
+                const chartData = {
+                    labels: years,
+                    datasets: [
+                        {
+                            label: 'Historical BTC Price',
+                            data: historicalData,
+                            borderColor: '#FFA500',
+                            backgroundColor: 'rgba(255, 165, 0, 0.2)',
+                            fill: false,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#FFA500'
+                        },
+                        {
+                            label: 'Scenario 1: Historical CAGR (Median)',
+                            data: historicalCAGR.map(d => d ? d.median : null),
+                            borderColor: '#00FF00',
+                            fill: false,
+                            pointRadius: 0,
+                            scenario: 'historical'
+                        },
+                        {
+                            label: 'Scenario 1: 10th-90th Percentile',
+                            data: historicalCAGR.map(d => d ? d.low : null),
+                            borderColor: theme === 'dark' ? 'rgba(0, 255, 0, 0.4)' : 'rgba(0, 255, 0, 0.2)',
+                            backgroundColor: theme === 'dark' ? 'rgba(0, 255, 0, 0.2)' : 'rgba(0, 255, 0, 0.1)',
+                            fill: '+1',
+                            pointRadius: 0,
+                            scenario: 'historical'
+                        },
+                        {
+                            label: 'Scenario 1: 90th Percentile',
+                            data: historicalCAGR.map(d => d ? d.high : null),
+                            borderColor: theme === 'dark' ? 'rgba(0, 255, 0, 0.4)' : 'rgba(0, 255, 0, 0.2)',
+                            fill: '-1',
+                            pointRadius: 0,
+                            scenario: 'historical'
+                        },
+                        {
+                            label: 'Scenario 2: Conservative Growth (Median)',
+                            data: conservative.map(d => d ? d.median : null),
+                            borderColor: '#0000FF',
+                            fill: false,
+                            pointRadius: 0,
+                            scenario: 'conservative'
+                        },
+                        {
+                            label: 'Scenario 2: 10th-90th Percentile',
+                            data: conservative.map(d => d ? d.low : null),
+                            borderColor: theme === 'dark' ? 'rgba(0, 0, 255, 0.4)' : 'rgba(0, 0, 255, 0.2)',
+                            backgroundColor: theme === 'dark' ? 'rgba(0, 0, 255, 0.2)' : 'rgba(0, 0, 255, 0.1)',
+                            fill: '+1',
+                            pointRadius: 0,
+                            scenario: 'conservative'
+                        },
+                        {
+                            label: 'Scenario 2: 90th Percentile',
+                            data: conservative.map(d => d ? d.high : null),
+                            borderColor: theme === 'dark' ? 'rgba(0, 0, 255, 0.4)' : 'rgba(0, 0, 255, 0.2)',
+                            fill: '-1',
+                            pointRadius: 0,
+                            scenario: 'conservative'
+                        },
+                        {
+                            label: 'Scenario 3: Accelerated Adoption (Median)',
+                            data: accelerated.map(d => d ? d.median : null),
+                            borderColor: '#FF00FF',
+                            fill: false,
+                            pointRadius: 0,
+                            scenario: 'accelerated'
+                        },
+                        {
+                            label: 'Scenario 3: 10th-90th Percentile',
+                            data: accelerated.map(d => d ? d.low : null),
+                            borderColor: theme === 'dark' ? 'rgba(255, 0, 255, 0.4)' : 'rgba(255, 0, 255, 0.2)',
+                            backgroundColor: theme === 'dark' ? 'rgba(255, 0, 255, 0.2)' : 'rgba(0, 255, 0, 0.1)',
+                            fill: '+1',
+                            pointRadius: 0,
+                            scenario: 'accelerated'
+                        },
+                        {
+                            label: 'Scenario 3: 90th Percentile',
+                            data: accelerated.map(d => d ? d.high : null),
+                            borderColor: theme === 'dark' ? 'rgba(255, 0, 255, 0.4)' : 'rgba(255, 0, 255, 0.2)',
+                            fill: '-1',
+                            pointRadius: 0,
+                            scenario: 'accelerated'
+                        },
+                        {
+                            label: '$1,000,000 Target',
+                            data: years.map(() => 1000000),
+                            borderColor: '#0000FF',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '$10,000,000 Target',
+                            data: years.map(() => 10000000),
+                            borderColor: '#00FF00',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '$100,000,000 Target',
+                            data: years.map(() => 100000000),
+                            borderColor: '#FF0000',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ],
+                    maxPrice,
+                    terminalYearPrices
+                };
+                if (!chartData.labels.length || !chartData.datasets.some(ds => ds.data.some(d => d !== null))) {
+                    console.error('Invalid chart data: empty labels or datasets');
+                    return null;
+                }
+                return chartData;
+            } catch (error) {
+                console.error('getChartData error:', error.message, error.stack);
+                return null;
+            }
+        }
+
+        function initializeChart(theme) {
+            const errorDiv = document.getElementById('error');
+            try {
+                if (!window.Chart) throw new Error('Chart.js not loaded');
+                const yearSlider = document.getElementById('year-slider');
+                if (!yearSlider) throw new Error('Year slider element not found');
+                const endYear = parseInt(yearSlider.value) + 2025;
+                if (isNaN(endYear) || endYear < 2025) throw new Error('Invalid end year: ' + endYear);
+                const chartData = getChartData(endYear, theme);
+                if (!chartData) throw new Error('Failed to generate chart data');
+                const ctx = document.getElementById('btcChart');
+                if (!ctx) throw new Error('Canvas element not found');
+                const chartContext = ctx.getContext('2d');
+                if (!chartContext) throw new Error('Failed to get 2D context');
+
+                const validBTCEquivalent = isNaN(totalBTCEquivalent) || totalBTCEquivalent <= 0 ? 0.1 : totalBTCEquivalent;
+
+                const terminalConservative = document.getElementById('terminal-conservative');
+                const terminalHistorical = document.getElementById('terminal-historical');
+                const terminalAccelerated = document.getElementById('terminal-accelerated');
+                if (terminalConservative && terminalHistorical && terminalAccelerated) {
+                    const consValue = validBTCEquivalent * chartData.terminalYearPrices.conservative;
+                    terminalConservative.innerHTML = `<span style="color: #0000FF;">${endYear}: $${isNaN(consValue) ? '0.00' : consValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
+                    const histValue = validBTCEquivalent * chartData.terminalYearPrices.historical;
+                    terminalHistorical.innerHTML = `<span style="color: #00FF00;">${endYear}: $${isNaN(histValue) ? '0.00' : histValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
+                    const accValue = validBTCEquivalent * chartData.terminalYearPrices.accelerated;
+                    terminalAccelerated.innerHTML = `<span style="color: #FF00FF;">${endYear}: $${isNaN(accValue) ? '0.00' : accValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
+                } else {
+                    console.error('Terminal year value elements not found:', { terminalConservative, terminalHistorical, terminalAccelerated });
+                }
+
+                const milestoneValues = document.getElementById('milestone-values');
+                if (!milestoneValues) throw new Error('Milestone values element not found');
+                const milestoneItems = Array.from(milestoneValues.getElementsByTagName('li')).slice(0, 3);
+                if (milestoneItems.length !== 3) console.error('Expected 3 milestone items, found:', milestoneItems.length);
+                const milestones = [1000000, 10000000, 100000000];
+                milestones.forEach((target, index) => {
+                    let yearConservative = null, yearHistorical = null, yearAccelerated = null;
+                    for (let year = 2025; year <= endYear; year++) {
+                        const yearsFrom2025 = year - 2025;
+                        const consPrice = yearsFrom2025 === 0 ? 130000 : 130000 * Math.pow(1 + growthRates.conservative, yearsFrom2025);
+                        const histPrice = yearsFrom2025 === 0 ? 130000 : 130000 * Math.pow(1 + growthRates.historicalCAGR, yearsFrom2025);
+                        const accPrice = yearsFrom2025 === 0 ? 130000 : 130000 * Math.pow(1 + growthRates.accelerated, yearsFrom2025);
+                        if (!yearConservative && validBTCEquivalent * consPrice >= target) {
+                            yearConservative = year;
+                        }
+                        if (!yearHistorical && validBTCEquivalent * histPrice >= target) {
+                            yearHistorical = year;
+                        }
+                        if (!yearAccelerated && validBTCEquivalent * accPrice >= target) {
+                            yearAccelerated = year;
+                        }
+                    }
+                    const yearsText = [];
+                    if (yearConservative) yearsText.push(`${yearConservative}`);
+                    if (yearHistorical && yearHistorical !== yearConservative) yearsText.push(`${yearHistorical}`);
+                    if (yearAccelerated && yearAccelerated !== yearConservative && yearHistorical !== yearAccelerated) yearsText.push(`${yearAccelerated}`);
+                    const yearsDisplay = yearsText.length > 0 ? yearsText.join('–') : `${endYear}+`;
+                    if (milestoneItems[index]) {
+                        milestoneItems[index].textContent = `At $${target.toLocaleString('en-US')}: $${(validBTCEquivalent * target).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${yearsDisplay})`;
+                    } else {
+                        console.error(`Milestone item ${index} not found`);
+                    }
+                });
+
+                const filteredDatasets = chartData.datasets.filter(dataset => {
+                    if (!dataset.scenario) return true;
+                    return scenarioToggles[dataset.scenario];
+                });
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+                chartInstance = new Chart(chartContext, {
+                    type: 'line',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: filteredDatasets
+                    },
+                    options: {
+                        aspectRatio: 1.8,
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Year',
+                                    font: { size: 12 },
+                                    color: theme === 'dark' ? '#e0e0e0' : '#333'
+                                },
+                                ticks: {
+                                    font: { size: 10 },
+                                    color: theme === 'dark' ? '#e0e0e0' : '#333'
+                                },
+                                grid: {
+                                    color: theme === 'dark' ? '#555' : '#ccc'
+                                }
+                            },
+                            y: {
+                                type: 'logarithmic',
+                                title: {
+                                    display: true,
+                                    text: 'Price (USD)',
+                                    font: { size: 12 },
+                                    color: theme === 'dark' ? '#e0e0e0' : '#333'
+                                },
+                                ticks: {
+                                    font: { size: 10 },
+                                    color: theme === 'dark' ? '#e0e0e0' : '#333'
+                                },
+                                grid: {
+                                    color: theme === 'dark' ? '#555' : '#ccc'
+                                },
+                                min: 0.01,
+                                max: chartData.maxPrice
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Bitcoin Price Projections with Multiple Targets',
+                                font: { size: 16 },
+                                color: theme === 'dark' ? '#e0e0e0' : '#333'
+                            },
+                            legend: {
+                                labels: {
+                                    font: { size: 10 },
+                                    color: theme === 'dark' ? '#e0e0e0' : '#333'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Chart initialization failed:', error.message, error.stack);
+                if (errorDiv) {
+                    errorDiv.textContent = `Chart error: ${error.message}`;
+                    errorDiv.style.display = 'block';
+                } else {
+                    console.error('Error div not found');
+                }
+            }
+        }
+
+        function updateChartTheme(theme) {
+            try {
+                initializeChart(theme);
+            } catch (error) {
+                console.error('Update chart theme error:', error.message, error.stack);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                const yearSlider = document.getElementById('year-slider');
+                const yearLabel = document.getElementById('year-label');
+                if (yearSlider && yearLabel) {
+                    yearSlider.addEventListener('input', () => {
+                        try {
+                            const years = parseInt(yearSlider.value);
+                            const endYear = 2025 + years;
+                            yearLabel.textContent = `Projections to ${endYear} (${years} years)`;
+                            initializeChart(body.getAttribute('data-theme'));
+                        } catch (error) {
+                            console.error('Year slider input error:', error.message, error.stack);
+                        }
+                    });
+                    const years = parseInt(yearSlider.value);
+                    const endYear = 2025 + years;
+                    yearLabel.textContent = `Projections to ${endYear} (${years} years)`;
+                } else {
+                    console.error('Slider or label element not found');
+                }
+
+                const toggleHistorical = document.getElementById('toggle-historical');
+                const toggleConservative = document.getElementById('toggle-conservative');
+                const toggleAccelerated = document.getElementById('toggle-accelerated');
+                if (toggleHistorical && toggleConservative && toggleAccelerated) {
+                    toggleHistorical.addEventListener('change', () => {
+                        try {
+                            scenarioToggles.historical = toggleHistorical.checked;
+                            initializeChart(body.getAttribute('data-theme'));
+                        } catch (error) {
+                            console.error('Historical toggle error:', error.message, error.stack);
+                        }
+                    });
+                    toggleConservative.addEventListener('change', () => {
+                        try {
+                            scenarioToggles.conservative = toggleConservative.checked;
+                            initializeChart(body.getAttribute('data-theme'));
+                        } catch (error) {
+                            console.error('Conservative toggle error:', error.message, error.stack);
+                        }
+                    });
+                    toggleAccelerated.addEventListener('change', () => {
+                        try {
+                            scenarioToggles.accelerated = toggleAccelerated.checked;
+                            initializeChart(body.getAttribute('data-theme'));
+                        } catch (error) {
+                            console.error('Accelerated toggle error:', error.message, error.stack);
+                        }
+                    });
+                } else {
+                    console.error('Scenario toggle elements not found');
+                }
+
+                updateBTCInput();
+                initializeChart(savedTheme);
+            } catch (error) {
+                console.error('DOMContentLoaded error:', error.message, error.stack);
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) {
+                    errorDiv.textContent = `Initialization error: ${error.message}`;
+                    errorDiv.style.display = 'block';
+                }
+            }
+        });
+
+        async function fetchInitialPrices() {
+            try {
+                console.log('Fetching initial prices at', new Date().toLocaleTimeString());
+                await fetchBTCPrice();
+            } catch (error) {
+                console.error('Initial price fetch error:', error.message, error.stack);
+            }
+        }
+        fetchInitialPrices();
+        setInterval(() => {
+            try {
+                fetchBTCPrice();
+            } catch (error) {
+                console.error('Periodic price fetch error:', error.message, error.stack);
+            }
+        }, 900000);
+    </script>
+</body>
+</html>
