@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ZintegrationX-BTC-Tracker</title>
     <meta name="description" content="Bitcoin price and portfolio projection tracker">
     <meta name="theme-color" content="#f4f4f4">
@@ -193,11 +193,8 @@
             cursor: pointer;
         }
         canvas#btcChart {
-            width: 80vw !important;
-            height: 40vh !important;
-            min-width: 300px;
+            width: 80vw;
             min-height: 200px;
-            max-width: 1000px;
             max-height: 500px;
             margin: 20px auto;
             padding: 10px;
@@ -209,7 +206,10 @@
         }
         @media (max-width: 600px) {
             canvas#btcChart, #projections, #legend, #year-slider-container, #scenario-toggles {
-                width: 90vw !important;
+                width: 90vw;
+            }
+            canvas#btcChart {
+                height: 300px;
             }
             .sections-container {
                 width: 90vw;
@@ -227,7 +227,7 @@
         }
         @media (min-width: 1200px) {
             canvas#btcChart, #projections, #legend, #year-slider-container, #scenario-toggles {
-                width: 75vw !important;
+                width: 75vw;
             }
             .sections-container {
                 width: 75vw;
@@ -238,7 +238,11 @@
 <body data-theme="light">
     <h1>ZintegrationX-BTC-Tracker</h1>
     <button id="theme-toggle">Toggle Dark Mode</button>
-    <div id="btc-input-container"></div>
+    <div id="btc-input-container">
+        <label for="btc-amount-input">Total BTC Amount:</label>
+        <input type="number" id="btc-amount-input" value="0.10000000" step="0.00000001" min="0">
+        <div class="current-value">Current Value: $11000.00</div>
+    </div>
     <div id="price">Loading BTC Price...</div>
     <div id="error"></div>
     <div id="scenario-toggles">
@@ -356,8 +360,8 @@
         });
 
         // Portfolio Data
-        let totalBTCEquivalent = 0.1; // User-editable BTC amount, default 0.1 BTC
-        let currentBTCPrice = 110000; // Initial fallback
+        let totalBTCEquivalent = 0.1;
+        let currentBTCPrice = 110000;
         let chartInstance = null;
 
         // Scenario Toggle States
@@ -383,9 +387,9 @@
                 }
                 const data = await response.json();
                 currentBTCPrice = data.bitcoin.usd;
-                localStorage.setItem('lastBTCPrice', currentBTCPrice); // Cache price
+                localStorage.setItem('lastBTCPrice', currentBTCPrice);
                 priceDiv.textContent = `Current BTC Price: $${currentBTCPrice.toFixed(2)}`;
-                updateBTCInput();
+                updateBTCValueDisplay();
             } catch (error) {
                 console.error('BTC fetch error:', error.message, error, 'Status:', response ? response.status : 'N/A');
                 const cachedPrice = localStorage.getItem('lastBTCPrice') || currentBTCPrice;
@@ -397,27 +401,28 @@
             }
         }
 
-        // Update BTC Input and Value
-        function updateBTCInput() {
-            const btcInputContainer = document.getElementById('btc-input-container');
-            if (!btcInputContainer) {
-                console.error('BTC input container element not found');
-                return;
+        // Update BTC Value Display
+        function updateBTCValueDisplay() {
+            const currentValueDiv = document.querySelector('#btc-input-container .current-value');
+            if (currentValueDiv) {
+                currentValueDiv.textContent = `Current Value: $${(totalBTCEquivalent * currentBTCPrice).toFixed(2)}`;
+            } else {
+                console.error('Current value div not found');
             }
-            btcInputContainer.innerHTML = `
-                <label for="btc-amount-input">Total BTC Amount:</label>
-                <input type="number" id="btc-amount-input" value="${totalBTCEquivalent.toFixed(8)}" step="0.00000001" min="0">
-                <div class="current-value">Current Value: $${(totalBTCEquivalent * currentBTCPrice).toFixed(2)}</div>
-            `;
+        }
+
+        // Initialize BTC Input
+        function initializeBTCInput() {
             const btcInput = document.getElementById('btc-amount-input');
             if (btcInput) {
+                btcInput.value = totalBTCEquivalent.toFixed(8);
                 btcInput.addEventListener('input', () => {
                     try {
                         const newValue = parseFloat(btcInput.value);
                         if (!isNaN(newValue) && newValue >= 0) {
                             totalBTCEquivalent = newValue;
-                            updateBTCInput();
-                            initializeChart(body.getAttribute('data-theme')); // Update projections
+                            updateBTCValueDisplay();
+                            initializeChart(body.getAttribute('data-theme'));
                         }
                     } catch (error) {
                         console.error('BTC input error:', error.message, error.stack);
@@ -710,7 +715,8 @@
                         datasets: filteredDatasets
                     },
                     options: {
-                        aspectRatio: 1.8,
+                        responsive: true,
+                        maintainAspectRatio: false,
                         scales: {
                             x: {
                                 title: {
@@ -759,7 +765,8 @@
                                     color: theme === 'dark' ? '#e0e0e0' : '#333'
                                 }
                             }
-                        }
+                        },
+                        devicePixelRatio: window.devicePixelRatio || 1
                     }
                 });
             } catch (error) {
@@ -835,7 +842,7 @@
                     console.error('Scenario toggle elements not found');
                 }
 
-                updateBTCInput();
+                initializeBTCInput();
                 initializeChart(savedTheme);
             } catch (error) {
                 console.error('DOMContentLoaded error:', error.message, error.stack);
